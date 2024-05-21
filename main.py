@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 class OtcChecker:
     def __init__(self):
+        self.saved_events = []
         self.discord_token = os.getenv('DISCORD_TOKEN')
 
     def get_finra_data(self, date=None):
@@ -51,8 +52,15 @@ class OtcChecker:
             'sec-fetch-site': 'same-site',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
         }
-        response = requests.request("POST", url, headers=headers, data=payload)
-        events = response.json()
+
+        try:
+            response = requests.request("POST", url, headers=headers, data=payload)
+            events = response.json()
+            print(events)
+
+        except Exception as e:
+            events = []
+            print(e)
 
         return events
 
@@ -68,8 +76,8 @@ class OtcChecker:
         message = "@everyone \n"
         for event in filtered_events:
             message += self.create_event_message(event)
-
-        self.send_discord_message(message)
+        print(message)
+        print(self.send_discord_message(message))
 
     def create_event_message(self, event):
         symbol = event['oldSymbolCode']
@@ -115,16 +123,18 @@ class OtcChecker:
         return False
 
     def check_daily(self):
-        all_events = self.get_finra_data()
-        rs_events = self.filter_events(all_events)
-        self.send_filtered_list(rs_events)
+        while True:
+            all_events = self.get_finra_data()
+            rs_events = self.filter_events(all_events)
+            rs_events_set = {tuple(sorted(event.items())) for event in rs_events}
+            saved_events_set = {tuple(sorted(event.items())) for event in self.saved_events}
+            new_events_set = rs_events_set - saved_events_set
+            new_events = [dict(event) for event in new_events_set]
+            print("new events:", new_events)
+            self.saved_events.extend(new_events)
+            self.send_filtered_list(new_events)
+            time.sleep(900)
 
 if __name__ == '__main__':
     otc_checker = OtcChecker()
     otc_checker.check_daily()
-    schedule.every().day.at("15:45").do(otc_checker.check_daily)
-
-    # Keep the script running
-    while True:
-        schedule.run_pending()
-        time.sleep(1)

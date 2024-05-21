@@ -73,6 +73,8 @@ class OtcChecker:
         return filtered_events
 
     def send_filtered_list(self, filtered_events):
+        if not filtered_events:
+            return
         message = "@everyone \n"
         for event in filtered_events:
             message += self.create_event_message(event)
